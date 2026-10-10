@@ -315,3 +315,37 @@ test('duplicated event belongs to the organizer and is not editable by other use
         ->get(route('events.edit', $copy))
         ->assertForbidden();
 });
+
+test('event list can be filtered by title or venue', function () {
+    Event::factory()->create(['title' => '朝焼けトレッキング', 'venue' => '岩手山']);
+    Event::factory()->create(['title' => '雪上ヨガ体験', 'venue' => '安比高原']);
+    Event::factory()->create(['title' => '夜のジャズ', 'venue' => '盛岡ホール']);
+
+    Livewire::test('pages::events.index')
+        ->assertSee(['朝焼けトレッキング', '雪上ヨガ体験', '夜のジャズ'])
+        ->set('search', 'ヨガ')
+        ->assertSee('雪上ヨガ体験')
+        ->assertDontSee(['朝焼けトレッキング', '夜のジャズ'])
+        ->set('search', '盛岡')
+        ->assertSee('夜のジャズ')
+        ->assertDontSee(['朝焼けトレッキング', '雪上ヨガ体験']);
+});
+
+test('event list shows a message when nothing matches the search', function () {
+    Event::factory()->create(['title' => '朝焼けトレッキング']);
+
+    Livewire::test('pages::events.index')
+        ->set('search', '存在しない語')
+        ->assertDontSee('朝焼けトレッキング')
+        ->assertSee('条件に合うイベントが見つかりません。');
+});
+
+test('search treats percent and underscore as plain characters', function () {
+    Event::factory()->create(['title' => '100%の力']);
+    Event::factory()->create(['title' => 'ふつうの会']);
+
+    Livewire::test('pages::events.index')
+        ->set('search', '%')
+        ->assertSee('100%の力')
+        ->assertDontSee('ふつうの会');
+});
