@@ -1,6 +1,7 @@
 <?php
 
 use App\Models\Event;
+use App\Models\TicketType;
 use App\Models\User;
 use Livewire\Livewire;
 
@@ -190,4 +191,127 @@ test('event cannot be deleted by a user who does not own the event', function ()
         ->assertForbidden();
 
     $this->assertModelExists($event);
+});
+
+test('organizer can duplicate their event', function () {
+    $event = Event::factory()->has(TicketType::factory()->count(2))->create([
+        'title' => '朝焼けトレッキング',
+        'starts_at' => '2030-05-01 05:00:00',
+        'ends_at' => '2030-05-01 09:00:00',
+    ]);
+
+    $this->actingAs($event->user);
+
+    $component = Livewire::test('pages::events.edit', ['event' => $event])
+        ->call('duplicate');
+
+    $this->assertDatabaseCount('events', 2);
+
+    $copy = Event::query()->whereKeyNot($event->id)->sole();
+
+    $component->assertRedirect(route('events.edit', $copy));
+
+    expect($copy->title)->toBe('朝焼けトレッキング（複製）')
+        ->and($copy->user_id)->toBe($event->user_id)
+        ->and($copy->description)->toBe($event->description)
+        ->and($copy->venue)->toBe($event->venue)
+        ->and($copy->starts_at->format('Y-m-d H:i'))->toBe('2030-05-08 05:00')
+        ->and($copy->ends_at->format('Y-m-d H:i'))->toBe('2030-05-08 09:00')
+        ->and($copy->ticketTypes()->count())->toBe(0)
+        ->and(session('status'))->toBe('イベントを複製しました。');
+
+    $event->refresh();
+
+    expect($event->title)->toBe('朝焼けトレッキング')
+        ->and($event->starts_at->format('Y-m-d H:i'))->toBe('2030-05-01 05:00')
+        ->and($event->ticketTypes()->count())->toBe(2);
+});
+
+test('duplicated title is shortened to fit within 100 characters', function () {
+    $event = Event::factory()->create(['title' => str_repeat('あ', 100)]);
+
+    $this->actingAs($event->user);
+
+    Livewire::test('pages::events.edit', ['event' => $event])
+        ->call('duplicate');
+
+    $copy = Event::query()->whereKeyNot($event->id)->sole();
+
+    expect($copy->title)->toBe(str_repeat('あ', 96).'（複製）')
+        ->and(mb_strlen($copy->title))->toBe(100);
+});
+
+test('event cannot be duplicated by a user who does not own the event', function () {
+    $event = Event::factory()->create();
+
+    $this->actingAs($event->user);
+    $component = Livewire::test('pages::events.edit', ['event' => $event]);
+
+    $this->actingAs(User::factory()->create());
+
+    $component
+        ->call('duplicate')
+        ->assertForbidden();
+
+    $this->assertDatabaseCount('events', 1);
+});
+
+test('edit page shows the duplicate button and the status message', function () {
+    $event = Event::factory()->create();
+
+    $this->actingAs($event->user)
+        ->withSession(['status' => 'イベントを複製しました。'])
+        ->get(route('events.edit', $event))
+        ->assertOk()
+        ->assertSee('イベントを複製しました。')
+        ->assertSeeHtml('wire:click="duplicate"');
+});
+
+test('unsaved form input is not carried over to the duplicated event', function () {
+    $event = Event::factory()->create(['title' => '朝焼けトレッキング']);
+
+    $this->actingAs($event->user);
+
+    Livewire::test('pages::events.edit', ['event' => $event])
+        ->set('title', '書きかけのタイトル')
+        ->call('duplicate');
+
+    $copy = Event::query()->whereKeyNot($event->id)->sole();
+
+    expect($copy->title)->toBe('朝焼けトレッキング（複製）')
+        ->and($event->refresh()->title)->toBe('朝焼けトレッキング');
+});
+
+test('event cannot be duplicated after the organizer logs out', function () {
+    $event = Event::factory()->create();
+
+    $this->actingAs($event->user);
+    $component = Livewire::test('pages::events.edit', ['event' => $event]);
+
+    auth()->logout();
+
+    $component
+        ->call('duplicate')
+        ->assertForbidden();
+
+    $this->assertDatabaseCount('events', 1);
+});
+
+test('duplicated event belongs to the organizer and is not editable by other users', function () {
+    $event = Event::factory()->create();
+
+    $this->actingAs($event->user);
+
+    Livewire::test('pages::events.edit', ['event' => $event])
+        ->call('duplicate');
+
+    $copy = Event::query()->whereKeyNot($event->id)->sole();
+
+    expect($copy->user->is($event->user))->toBeTrue();
+
+    $this->get(route('events.edit', $copy))->assertOk();
+
+    $this->actingAs(User::factory()->create())
+        ->get(route('events.edit', $copy))
+        ->assertForbidden();
 });
