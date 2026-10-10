@@ -63,7 +63,65 @@ test('ticket type is rejected when the input is invalid', function (string $fiel
     'price is negative' => ['ticketTypePrice', '-1', 'min'],
     'price is not an integer' => ['ticketTypePrice', '1000.5', 'integer'],
     'capacity is zero' => ['ticketTypeCapacity', '0', 'min'],
+    'price is empty' => ['ticketTypePrice', '', 'required'],
+    'capacity is empty' => ['ticketTypeCapacity', '', 'required'],
+    'capacity is not an integer' => ['ticketTypeCapacity', '1.5', 'integer'],
 ]);
+
+test('ticket type can be added with boundary values', function () {
+    $event = Event::factory()->create();
+    $name = str_repeat('あ', 50);
+
+    $this->actingAs($event->user);
+
+    Livewire::test('pages::events.edit', ['event' => $event])
+        ->set('ticketTypeName', $name)
+        ->set('ticketTypePrice', '0')
+        ->set('ticketTypeCapacity', '1')
+        ->call('addTicketType')
+        ->assertHasNoErrors();
+
+    $this->assertDatabaseHas('ticket_types', [
+        'event_id' => $event->id,
+        'name' => $name,
+        'price' => 0,
+        'capacity' => 1,
+    ]);
+});
+
+test('ticket type cannot be added after the organizer logs out', function () {
+    $event = Event::factory()->create();
+
+    $this->actingAs($event->user);
+    $component = Livewire::test('pages::events.edit', ['event' => $event]);
+
+    auth()->logout();
+
+    $component
+        ->set('ticketTypeName', '一般')
+        ->set('ticketTypePrice', '3000')
+        ->set('ticketTypeCapacity', '30')
+        ->call('addTicketType')
+        ->assertForbidden();
+
+    $this->assertDatabaseCount('ticket_types', 0);
+});
+
+test('ticket type cannot be deleted after the organizer logs out', function () {
+    $event = Event::factory()->create();
+    $ticketType = TicketType::factory()->for($event)->create();
+
+    $this->actingAs($event->user);
+    $component = Livewire::test('pages::events.edit', ['event' => $event]);
+
+    auth()->logout();
+
+    $component
+        ->call('deleteTicketType', $ticketType->id)
+        ->assertForbidden();
+
+    $this->assertModelExists($ticketType);
+});
 
 test('event can be updated while the ticket type inputs are empty', function () {
     $event = Event::factory()->create();
