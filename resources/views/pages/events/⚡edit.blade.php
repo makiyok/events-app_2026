@@ -1,6 +1,9 @@
 <?php
 
 use App\Models\Event;
+use App\Models\TicketType;
+use Illuminate\Database\Eloquent\Collection;
+use Livewire\Attributes\Computed;
 use Livewire\Attributes\Title;
 use Livewire\Attributes\Validate;
 use Livewire\Component;
@@ -22,6 +25,12 @@ new #[Title('イベントを編集')] class extends Component {
 
     #[Validate('required|date|after:starts_at')]
     public string $ends_at = '';
+
+    public string $ticketTypeName = '';
+
+    public string $ticketTypePrice = '';
+
+    public string $ticketTypeCapacity = '';
 
     public function mount(Event $event): void
     {
@@ -58,6 +67,44 @@ new #[Title('イベントを編集')] class extends Component {
 
         $this->redirectRoute('events.index', navigate: true);
     }
+
+    /**
+     * このイベントの券種を登録順に取り出す。
+     *
+     * @return Collection<int, TicketType>
+     */
+    #[Computed]
+    public function ticketTypes(): Collection
+    {
+        return $this->event->ticketTypes()->orderBy('id')->get();
+    }
+
+    public function addTicketType(): void
+    {
+        abort_unless($this->event->isOwnedBy(auth()->user()), 403);
+
+        $validated = $this->validate(
+            [
+                'ticketTypeName' => 'required|string|max:50',
+                'ticketTypePrice' => 'required|integer|min:0',
+                'ticketTypeCapacity' => 'required|integer|min:1',
+            ],
+            attributes: [
+                'ticketTypeName' => '券種名',
+                'ticketTypePrice' => '価格',
+                'ticketTypeCapacity' => '定員',
+            ],
+        );
+
+        $this->event->ticketTypes()->create([
+            'name' => $validated['ticketTypeName'],
+            'price' => (int) $validated['ticketTypePrice'],
+            'capacity' => (int) $validated['ticketTypeCapacity'],
+        ]);
+
+        $this->reset('ticketTypeName', 'ticketTypePrice', 'ticketTypeCapacity');
+        unset($this->ticketTypes);
+    }
 }; 
 ?>
 
@@ -80,6 +127,43 @@ new #[Title('イベントを編集')] class extends Component {
                 <flux:button :href="route('events.index')" variant="ghost" wire:navigate>キャンセル</flux:button>
                 <flux:button type="submit" variant="primary">更新する</flux:button>
             </div>
+        </div>
+    </form>
+
+    <flux:separator />
+
+    <flux:heading size="lg">券種</flux:heading>
+
+    @if ($this->ticketTypes->isEmpty())
+        <flux:text>券種はまだありません。</flux:text>
+    @else
+        <flux:table>
+            <flux:table.columns>
+                <flux:table.column>券種名</flux:table.column>
+                <flux:table.column>価格</flux:table.column>
+                <flux:table.column>定員</flux:table.column>
+            </flux:table.columns>
+            <flux:table.rows>
+                @foreach ($this->ticketTypes as $ticketType)
+                    <flux:table.row wire:key="ticket-type-{{ $ticketType->id }}">
+                        <flux:table.cell variant="strong">{{ $ticketType->name }}</flux:table.cell>
+                        <flux:table.cell>{{ number_format($ticketType->price) }}円</flux:table.cell>
+                        <flux:table.cell>{{ number_format($ticketType->capacity) }}名</flux:table.cell>
+                    </flux:table.row>
+                @endforeach
+            </flux:table.rows>
+        </flux:table>
+    @endif
+
+    <form wire:submit="addTicketType" class="space-y-6">
+        <div class="grid gap-6 sm:grid-cols-3">
+            <flux:input wire:model="ticketTypeName" label="券種名" placeholder="例: 一般" />
+            <flux:input wire:model="ticketTypePrice" label="価格（円）" type="number" min="0" />
+            <flux:input wire:model="ticketTypeCapacity" label="定員（名）" type="number" min="1" />
+        </div>
+
+        <div class="flex justify-end">
+            <flux:button type="submit" icon="plus">券種を追加</flux:button>
         </div>
     </form>
 </div>

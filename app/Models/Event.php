@@ -7,8 +7,9 @@ use Illuminate\Database\Eloquent\Attributes\Fillable;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
-use Illuminate\Support\Carbon;
 use Illuminate\Database\Eloquent\Relations\HasMany;
+use Illuminate\Support\Carbon;
+
 /**
  * @property int $id
  * @property int $user_id
@@ -36,15 +37,17 @@ class Event extends Model
             'ends_at' => 'datetime',
         ];
     }
-     /**
-      * 自分が作ったイベント。
-      *
-      * @return HasMany<Event, $this>
-      */
-     public function events(): HasMany
-     {
-       return $this->hasMany(Event::class);
-     }
+
+    /**
+     * 自分が作ったイベント。
+     *
+     * @return HasMany<Event, $this>
+     */
+    public function events(): HasMany
+    {
+        return $this->hasMany(Event::class);
+    }
+
     /**
      * このイベントを作ったユーザー。
      *
@@ -53,6 +56,16 @@ class Event extends Model
     public function user(): BelongsTo
     {
         return $this->belongsTo(User::class);
+    }
+
+    /**
+     * このイベントの券種。
+     *
+     * @return HasMany<TicketType, $this>
+     */
+    public function ticketTypes(): HasMany
+    {
+        return $this->hasMany(TicketType::class);
     }
 
     /**
