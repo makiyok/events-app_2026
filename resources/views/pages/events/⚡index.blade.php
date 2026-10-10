@@ -7,15 +7,29 @@ use Livewire\Attributes\Title;
 use Livewire\Component;
 
 new #[Title('イベント一覧')] class extends Component {
+    public string $search = '';
+
     /**
-     * 開催日が近い順にイベントを取り出す。
+     * タイトルか会場に検索語を含むイベントを、開催日が近い順に取り出す。
      *
      * @return Collection<int, Event>
      */
     #[Computed]
     public function events(): Collection
     {
-        return Event::query()->withMin('ticketTypes', 'price')->orderBy('starts_at')->get();
+        $keyword = trim($this->search);
+        $pattern = '%'.addcslashes($keyword, '\\%_').'%';
+
+        return Event::query()
+            ->withMin('ticketTypes', 'price')
+            ->when($keyword !== '', function ($query) use ($pattern) {
+                $query->where(function ($query) use ($pattern) {
+                    $query->where('title', 'like', $pattern)
+                        ->orWhere('venue', 'like', $pattern);
+                });
+            })
+            ->orderBy('starts_at')
+            ->get();
     }
 }; ?>
 
@@ -33,8 +47,15 @@ new #[Title('イベント一覧')] class extends Component {
         </flux:callout>
     @endif
 
+    <flux:input
+        wire:model.live.debounce.300ms="search"
+        icon="magnifying-glass"
+        placeholder="タイトルや会場で検索"
+        clearable
+    />
+
     @if ($this->events->isEmpty())
-        <flux:text>イベントはまだありません。</flux:text>
+        <flux:text>{{ trim($search) === '' ? 'イベントはまだありません。' : '条件に合うイベントが見つかりません。' }}</flux:text>
     @else
         <flux:table>
             <flux:table.columns>
