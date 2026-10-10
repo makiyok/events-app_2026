@@ -7,7 +7,8 @@ use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\Session;
 use Livewire\Attributes\Computed;
 use Livewire\Attributes\Title;
-use Livewsail <area shape="" coords="" href="" alt="">
+use Livewire\Component;
+
 new #[Title('Profile settings')] class extends Component {
     use ProfileValidationRules;
 

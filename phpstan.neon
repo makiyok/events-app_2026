@@ -11,3 +11,9 @@ parameters:
         - routes/
 
     level: 7
+
+    ignoreErrors:
+        # Livewire の単一ファイルコンポーネント（⚡profile.blade.php）からだけ使われており、PHPStan の解析対象外のため未使用に見える
+        -
+            identifier: trait.unused
+            path: app/Concerns/ProfileValidationRules.php
